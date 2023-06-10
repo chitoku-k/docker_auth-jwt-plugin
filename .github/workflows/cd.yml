@@ -30,6 +30,7 @@ jobs:
           context: .
           cache-from: type=gha
           cache-to: type=gha
+          push: true
           tags: |
             ghcr.io/chitoku-k/docker_auth:latest
             ghcr.io/chitoku-k/docker_auth:${{ github.ref_name }}
