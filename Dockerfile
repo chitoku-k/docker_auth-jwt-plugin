@@ -1,6 +1,7 @@
 # syntax = docker/dockerfile:experimental
-FROM golang:1.20.5 AS build
+FROM golang:1.20.5-alpine AS build
 WORKDIR /usr/src
+RUN apk add --no-cache gcc musl-dev
 COPY go.mod go.sum /usr/src/
 RUN --mount=type=cache,target=/go \
     go mod download
