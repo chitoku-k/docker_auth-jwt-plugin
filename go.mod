@@ -2,9 +2,11 @@ module github.com/chitoku-k/docker_auth-jwt-plugin
 
 go 1.20
 
+replace github.com/cesanta/docker_auth/auth_server => ./docker_auth/auth_server
+
 require (
-	github.com/cesanta/docker_auth/auth_server v0.0.0-20230517185838-a900f2f5ea14
-	github.com/lestrrat-go/jwx/v2 v2.0.9
+	github.com/cesanta/docker_auth/auth_server v0.0.0-20230301204333-39d6404f878d
+	github.com/lestrrat-go/jwx/v2 v2.0.8
 )
 
 require (
@@ -15,5 +17,5 @@ require (
 	github.com/lestrrat-go/httprc v1.0.4 // indirect
 	github.com/lestrrat-go/iter v1.0.2 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
-	golang.org/x/crypto v0.7.0 // indirect
+	golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be // indirect
 )
