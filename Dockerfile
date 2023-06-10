@@ -11,4 +11,5 @@ RUN --mount=type=cache,target=/go \
     go build -buildmode=plugin -ldflags='-s -w'
 
 FROM cesanta/docker_auth:1.11.0
+RUN apk add --no-cache libc6-compat
 COPY --from=build /usr/src/docker_auth-jwt-plugin.so /docker_auth/plugins/
