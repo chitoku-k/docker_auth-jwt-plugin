@@ -1,0 +1,6 @@
+Dockerfile
+README.md
+vendor
+docker_auth-jwt-plugin.so
+.dockerignore
+.gitignore
