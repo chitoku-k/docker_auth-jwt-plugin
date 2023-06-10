@@ -14,6 +14,7 @@ RUN --mount=type=cache,target=/go \
     --mount=type=cache,target=/root/.cache/go-build \
     VERSION=$DOCKER_AUTH_VERSION && \
     BUILD_ID=$(date +%Y%m%d-%H%M%S)/$VERSION@$(git rev-parse --short=8 HEAD) && \
+    git apply ../../patches/plugin_authn.go.patch && \
     go build -ldflags="-X 'main.Version=${VERSION}' -X 'main.BuildID=${BUILD_ID}'"
 
 FROM scratch
