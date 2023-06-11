@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cesanta/docker_auth/auth_server/api"
@@ -17,39 +18,43 @@ import (
 var Authn api.Authenticator = NewJWTAuthenticator()
 
 func NewJWTAuthenticator() *jwtAuthenticator {
-	var jwkss []jwk.Set
-	var jwksUsernameClaims []string
-
-	for i := 0; ; i++ {
-		jwksEndpoint := os.Getenv(fmt.Sprintf("DOCKER_AUTH_JWT_JWKS_%d_ENDPOINT", i))
-		if jwksEndpoint == "" {
-			break
-		}
-		jwksUsernameClaim := os.Getenv(fmt.Sprintf("DOCKER_AUTH_JWT_JWKS_%d_USERNAME_CLAIM", i))
-		if jwksUsernameClaim == "" {
-			break
-		}
-
-		cache := jwk.NewCache(context.Background())
-		cache.Register(jwksEndpoint)
-
-		jwkss = append(jwkss, jwk.NewCachedSet(cache, jwksEndpoint))
-		jwksUsernameClaims = append(jwksUsernameClaims, jwksUsernameClaim)
-	}
-
-	if len(jwkss) == 0 {
-		panic("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT and DOCKER_AUTH_JWT_JWKS_0_USER_CLAIM is not set")
-	}
-
 	aud := os.Getenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM")
 	if aud == "" {
 		panic("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM is not set")
 	}
 
+	var jwkProviders []jwkProvider
+	for i := 0; ; i++ {
+		endpoint := os.Getenv(fmt.Sprintf("DOCKER_AUTH_JWT_JWKS_%d_ENDPOINT", i))
+		if endpoint == "" {
+			break
+		}
+		usernameClaim := os.Getenv(fmt.Sprintf("DOCKER_AUTH_JWT_JWKS_%d_USERNAME_CLAIM", i))
+		if usernameClaim == "" {
+			break
+		}
+		usernamePrefix := os.Getenv(fmt.Sprintf("DOCKER_AUTH_JWT_JWKS_%d_USERNAME_PREFIX", i))
+		if usernamePrefix == "" {
+			break
+		}
+
+		cache := jwk.NewCache(context.Background())
+		cache.Register(endpoint)
+
+		jwkProviders = append(jwkProviders, jwkProvider{
+			keySet:         jwk.NewCachedSet(cache, endpoint),
+			usernameClaim:  usernameClaim,
+			usernamePrefix: usernamePrefix,
+			clientID:       aud,
+		})
+	}
+
+	if len(jwkProviders) == 0 {
+		panic("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT, DOCKER_AUTH_JWT_JWKS_0_USERNAME_CLAIM, and DOCKER_AUTH_JWT_JWKS_0_USERNAME_PREFIX is not set")
+	}
+
 	return &jwtAuthenticator{
-		jwkss:              jwkss,
-		jwksUsernameClaims: jwksUsernameClaims,
-		clientID:           aud,
+		jwkProviders: jwkProviders,
 	}
 }
 
@@ -80,16 +85,35 @@ func createLabels(t jwt.Token) api.Labels {
 }
 
 type jwtAuthenticator struct {
-	jwkss              []jwk.Set
-	jwksUsernameClaims []string
-	clientID           string
+	jwkProviders []jwkProvider
+}
+
+type jwkProvider struct {
+	keySet         jwk.Set
+	usernameClaim  string
+	usernamePrefix string
+	clientID       string
 }
 
 func (j *jwtAuthenticator) Authenticate(user string, password api.PasswordString) (bool, api.Labels, error) {
 	token := []byte(password)
 
-	for i, jwks := range j.jwkss {
-		t, err := jwt.Parse(token, jwt.WithKeySet(jwks), jwt.WithAudience(j.clientID), jwt.WithClaimValue(j.jwksUsernameClaims[i], user))
+	for i, jwkProvider := range j.jwkProviders {
+		if !strings.HasPrefix(user, jwkProvider.usernamePrefix) {
+			continue
+		}
+
+		usernameClaim := strings.TrimPrefix(user, jwkProvider.usernamePrefix)
+		if usernameClaim == "" {
+			continue
+		}
+
+		t, err := jwt.Parse(
+			token,
+			jwt.WithKeySet(jwkProvider.keySet),
+			jwt.WithAudience(jwkProvider.clientID),
+			jwt.WithClaimValue(jwkProvider.usernameClaim, usernameClaim),
+		)
 		if errors.Is(err, jwt.ErrInvalidJWT()) {
 			return false, nil, api.NoMatch
 		}
