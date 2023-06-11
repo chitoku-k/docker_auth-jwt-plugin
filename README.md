@@ -27,14 +27,14 @@ export DOCKER_AUTH_JWT_JWKS_0_ENDPOINT=https://www.googleapis.com/oauth2/v3/cert
 export DOCKER_AUTH_JWT_JWKS_1_ENDPOINT=https://token.actions.githubusercontent.com/.well-known/jwks
 # ...
 
-# JWT claim(s) that must match with username from `docker login` (required)
+# JWT claim(s) that must match with username from `docker login` (required; claim that contains `:` does not work due to BASIC Auth)
 export DOCKER_AUTH_JWT_JWKS_0_USERNAME_CLAIM=email
-export DOCKER_AUTH_JWT_JWKS_1_USERNAME_CLAIM=sub
+export DOCKER_AUTH_JWT_JWKS_1_USERNAME_CLAIM=repository
 # ...
 
-# Username prefix with `docker login` (required)
-export DOCKER_AUTH_JWT_JWKS_0_USERNAME_PREFIX=google:
-export DOCKER_AUTH_JWT_JWKS_1_USERNAME_PREFIX=github-actions:
+# Username prefix with `docker login` (required; `:` does not work due to BASIC Auth)
+export DOCKER_AUTH_JWT_JWKS_0_USERNAME_PREFIX=google/
+export DOCKER_AUTH_JWT_JWKS_1_USERNAME_PREFIX=github-actions/
 # ...
 
 # JWT "aud" claim whose value must be verified against (required)
@@ -47,7 +47,7 @@ claim is equal to the non-prefixed username:
 ```sh
 docker login \
     registry.example.com \
-    --username='google:user@example.com' \
+    --username='google/user@example.com' \
     --password-stdin <<< 'token'
 ```
 
