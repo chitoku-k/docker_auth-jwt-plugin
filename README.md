@@ -16,7 +16,7 @@ Configure docker\_auth as in the following:
 
 ```yaml
 plugin_authn:
-  plugin_path: /path/to/docker_auth-jwt-plugin.so
+  plugin_path: /docker_auth/plugins/docker_auth-jwt-plugin.so
 ```
 
 Start docker\_auth with the environment variable(s):
@@ -32,8 +32,23 @@ export DOCKER_AUTH_JWT_JWKS_0_USERNAME_CLAIM=email
 export DOCKER_AUTH_JWT_JWKS_1_USERNAME_CLAIM=sub
 # ...
 
+# Username prefix with `docker login` (required)
+export DOCKER_AUTH_JWT_JWKS_0_USERNAME_PREFIX=google:
+export DOCKER_AUTH_JWT_JWKS_1_USERNAME_PREFIX=github-actions:
+# ...
+
 # JWT "aud" claim whose value must be verified against (required)
 export DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM=your-client-id
+```
+
+Execute `docker login` with the prefixed username and the token whose username
+claim is equal to the non-prefixed username:
+
+```sh
+docker login \
+    registry.example.com \
+    --username='google:user@example.com' \
+    --password-stdin <<< 'token'
 ```
 
 [cesanta/docker\_auth]: https://github.com/cesanta/docker_auth
