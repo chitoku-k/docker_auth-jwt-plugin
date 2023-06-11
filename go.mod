@@ -6,6 +6,7 @@ replace github.com/cesanta/docker_auth/auth_server => ./docker_auth/auth_server
 
 require (
 	github.com/cesanta/docker_auth/auth_server v0.0.0-20230301204333-39d6404f878d
+	github.com/cesanta/glog v0.0.0-20150527111657-22eb27a0ae19
 	github.com/lestrrat-go/jwx/v2 v2.0.8
 )
 
