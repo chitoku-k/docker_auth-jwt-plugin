@@ -14,13 +14,20 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
-// Authn is an entrypoint that authenticates JWT via JWKs endpoints.
-var Authn = NewJWTAuthenticator()
-
 // Ensure that *jwtAuthenticator implements api.Authenticator, for plugin.Symbol is a pointer.
 var _ api.Authenticator = (*jwtAuthenticator)(nil)
 
-func NewJWTAuthenticator() jwtAuthenticator {
+type jwtAuthenticator struct {
+	jwkProviders []jwkProvider
+	username     string
+	clientID     string
+}
+
+type jwkProvider struct {
+	keySet jwk.Set
+}
+
+func NewJWTAuthenticator(httpClient jwk.HTTPClient) jwtAuthenticator {
 	aud := os.Getenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM")
 	if aud == "" {
 		panic("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM is not set")
@@ -28,7 +35,7 @@ func NewJWTAuthenticator() jwtAuthenticator {
 
 	username := os.Getenv("DOCKER_AUTH_JWT_USERNAME")
 	if username == "" {
-		panic("DOCKER_AUTH_JWT_USERNAME")
+		panic("DOCKER_AUTH_JWT_USERNAME is not set")
 	}
 
 	var jwkProviders []jwkProvider
@@ -39,7 +46,7 @@ func NewJWTAuthenticator() jwtAuthenticator {
 		}
 
 		cache := jwk.NewCache(context.Background())
-		cache.Register(endpoint)
+		cache.Register(endpoint, jwk.WithHTTPClient(httpClient))
 
 		jwkProviders = append(jwkProviders, jwkProvider{
 			keySet: jwk.NewCachedSet(cache, endpoint),
@@ -81,16 +88,6 @@ func createLabels(t jwt.Token) api.Labels {
 	}
 
 	return labels
-}
-
-type jwtAuthenticator struct {
-	jwkProviders []jwkProvider
-	username     string
-	clientID     string
-}
-
-type jwkProvider struct {
-	keySet jwk.Set
 }
 
 func (j *jwtAuthenticator) Authenticate(user string, password api.PasswordString) (bool, api.Labels, error) {

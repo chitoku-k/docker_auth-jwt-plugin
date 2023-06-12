@@ -4,7 +4,7 @@ WORKDIR /usr/src
 COPY . /usr/src/
 RUN --mount=type=cache,target=/go \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildmode=plugin -ldflags='-s -w'
+    go build -buildmode=plugin -tags=plugin -ldflags='-s -w'
 
 FROM golang:1.20.5 AS core
 WORKDIR /usr/src/docker_auth/auth_server

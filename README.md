@@ -1,6 +1,8 @@
 docker\_auth-jwt-plugin
 =======================
 
+[![][workflow-badge]][workflow-link]
+
 Authentication plugin for [cesanta/docker\_auth] that verifies JWTs (JSON Web
 Token) via JWKs endpoint.
 
@@ -50,3 +52,5 @@ docker login \
 ```
 
 [cesanta/docker\_auth]: https://github.com/cesanta/docker_auth
+[workflow-link]:        https://github.com/chitoku-k/docker_auth-jwt-plugin/actions?query=branch:master
+[workflow-badge]:       https://img.shields.io/github/actions/workflow/status/chitoku-k/docker_auth-jwt-plugin/ci.yml?branch=master&style=flat-square&logo=github
