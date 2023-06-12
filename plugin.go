@@ -14,9 +14,13 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
-var Authn api.Authenticator = NewJWTAuthenticator()
+// Authn is an entrypoint that authenticates JWT via JWKs endpoints.
+var Authn = NewJWTAuthenticator()
 
-func NewJWTAuthenticator() *jwtAuthenticator {
+// Ensure that *jwtAuthenticator implements api.Authenticator, for plugin.Symbol is a pointer.
+var _ api.Authenticator = (*jwtAuthenticator)(nil)
+
+func NewJWTAuthenticator() jwtAuthenticator {
 	aud := os.Getenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM")
 	if aud == "" {
 		panic("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM is not set")
@@ -46,7 +50,7 @@ func NewJWTAuthenticator() *jwtAuthenticator {
 		panic("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT is not set")
 	}
 
-	return &jwtAuthenticator{
+	return jwtAuthenticator{
 		jwkProviders: jwkProviders,
 		username:     username,
 		clientID:     aud,
@@ -113,7 +117,7 @@ func (j *jwtAuthenticator) Authenticate(user string, password api.PasswordString
 			continue
 		}
 
-		exp := t.Expiration().Sub(time.Now())
+		exp := time.Until(t.Expiration())
 		glog.V(1).Infof("Validated JWT for %v (exp %d)", t.Subject(), int(exp.Seconds()))
 		return true, createLabels(t), nil
 	}
