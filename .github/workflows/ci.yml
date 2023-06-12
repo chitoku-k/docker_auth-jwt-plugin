@@ -19,3 +19,18 @@ jobs:
           context: .
           cache-from: type=gha
           cache-to: type=gha
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+      - name: Run tests
+        run: |
+          go test ./...
