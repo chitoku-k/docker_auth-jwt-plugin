@@ -7,7 +7,13 @@ Token) via JWKs endpoint.
 ## Installation
 
 ```sh
-$ go build -buildmode=plugin
+docker run \
+    --env=DOCKER_AUTH_JWT_JWKS_0_ENDPOINT \
+    --env=DOCKER_AUTH_JWT_JWKS_1_ENDPOINT \
+    --env=DOCKER_AUTH_JWT_USERNAME \
+    --env=DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM \
+    --mount=type=bind,src=./config/auth_config.yml,dst=/config/auth_config.yml \
+    ghcr.io/chitoku-k/docker_auth
 ```
 
 ## Usage
@@ -34,8 +40,7 @@ export DOCKER_AUTH_JWT_USERNAME=oauth2accesstoken
 export DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM=your-client-id
 ```
 
-Execute `docker login` with the prefixed username and the token whose username
-claim is equal to the non-prefixed username:
+Execute `docker login` with the fixed username and the token as a password:
 
 ```sh
 docker login \
