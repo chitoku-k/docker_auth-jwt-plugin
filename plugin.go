@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cesanta/docker_auth/auth_server/api"
@@ -21,6 +22,8 @@ type jwtAuthenticator struct {
 	jwkProviders []jwkProvider
 	username     string
 	clientID     string
+
+	lowercaseLabels bool
 }
 
 type jwkProvider struct {
@@ -36,6 +39,16 @@ func NewJWTAuthenticator(httpClient jwk.HTTPClient) jwtAuthenticator {
 	username := os.Getenv("DOCKER_AUTH_JWT_USERNAME")
 	if username == "" {
 		panic("DOCKER_AUTH_JWT_USERNAME is not set")
+	}
+
+	var lowercaseLabels bool
+	lowercaseLabelsEnv := os.Getenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS")
+	if lowercaseLabelsEnv != "" {
+		var err error
+		lowercaseLabels, err = strconv.ParseBool(lowercaseLabelsEnv)
+		if err != nil {
+			panic("DOCKER_AUTH_JWT_LOWERCASE_LABELS is invalid")
+		}
 	}
 
 	var jwkProviders []jwkProvider
@@ -58,13 +71,23 @@ func NewJWTAuthenticator(httpClient jwk.HTTPClient) jwtAuthenticator {
 	}
 
 	return jwtAuthenticator{
-		jwkProviders: jwkProviders,
-		username:     username,
-		clientID:     aud,
+		jwkProviders:    jwkProviders,
+		username:        username,
+		clientID:        aud,
+		lowercaseLabels: lowercaseLabels,
 	}
 }
 
-func createLabels(t jwt.Token) api.Labels {
+func lowercaseLabels(labels api.Labels) api.Labels {
+	for _, label := range labels {
+		for k, v := range label {
+			label[k] = strings.ToLower(v)
+		}
+	}
+	return labels
+}
+
+func (j *jwtAuthenticator) createLabels(t jwt.Token) api.Labels {
 	labels := api.Labels{}
 
 	for it := t.Iterate(context.Background()); it.Next(context.Background()); {
@@ -85,6 +108,10 @@ func createLabels(t jwt.Token) api.Labels {
 		case time.Time:
 			labels[k] = []string{strconv.FormatInt(v.Unix(), 10)}
 		}
+	}
+
+	if j.lowercaseLabels {
+		return lowercaseLabels(labels)
 	}
 
 	return labels
@@ -116,7 +143,7 @@ func (j *jwtAuthenticator) Authenticate(user string, password api.PasswordString
 
 		exp := time.Until(t.Expiration())
 		glog.V(1).Infof("Validated JWT for %v (exp %d)", t.Subject(), int(exp.Seconds()))
-		return true, createLabels(t), nil
+		return true, j.createLabels(t), nil
 	}
 
 	return false, nil, api.NoMatch
