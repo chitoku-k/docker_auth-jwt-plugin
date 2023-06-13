@@ -39,12 +39,16 @@ var _ = Describe("Authn", func() {
 		endpoint1 string
 		endpoint2 string
 
-		authn   api.Authenticator
-		idtoken []byte
+		authn api.Authenticator
+		token []byte
 
 		signingKey1 *rsa.PrivateKey
 		signingKey2 *rsa.PrivateKey
 		signingKey3 *rsa.PrivateKey
+
+		keyID1 string
+		keyID2 string
+		keyID3 string
 	)
 
 	BeforeEach(func() {
@@ -65,6 +69,49 @@ var _ = Describe("Authn", func() {
 
 		signingKey3, err = rsa.GenerateKey(rand.Reader, 2048)
 		Expect(err).NotTo(HaveOccurred())
+
+		keyID1 = "test-key"
+		n1 := signingKey1.N
+		e1 := big.NewInt(int64(signingKey1.E))
+
+		keyID2 = "test-key-2"
+		n2 := signingKey2.N
+		e2 := big.NewInt(int64(signingKey2.E))
+
+		keyID3 = "test-key-3"
+
+		server.AppendHandlers(
+			ghttp.CombineHandlers(
+				ghttp.VerifyRequest(http.MethodGet, "/.well-known/jwks"),
+				ghttp.RespondWithJSONEncoded(http.StatusOK, map[string]any{
+					"keys": []map[string]any{
+						{
+							jwk.KeyTypeKey:   jwa.RSA,
+							jwk.KeyUsageKey:  jwk.ForSignature,
+							jwk.AlgorithmKey: jwa.RS256,
+							jwk.KeyIDKey:     keyID1,
+							jwk.RSANKey:      base64.URLEncoding.EncodeToString(n1.Bytes()),
+							jwk.RSAEKey:      base64.URLEncoding.EncodeToString(e1.Bytes()),
+						},
+					},
+				}),
+			),
+			ghttp.CombineHandlers(
+				ghttp.VerifyRequest(http.MethodGet, "/v2/jwks"),
+				ghttp.RespondWithJSONEncoded(http.StatusOK, map[string]any{
+					"keys": []map[string]any{
+						{
+							jwk.KeyTypeKey:   jwa.RSA,
+							jwk.KeyUsageKey:  jwk.ForSignature,
+							jwk.AlgorithmKey: jwa.RS256,
+							jwk.KeyIDKey:     keyID2,
+							jwk.RSANKey:      base64.URLEncoding.EncodeToString(n2.Bytes()),
+							jwk.RSAEKey:      base64.URLEncoding.EncodeToString(e2.Bytes()),
+						},
+					},
+				}),
+			),
+		)
 	})
 
 	AfterEach(func() {
@@ -77,6 +124,7 @@ var _ = Describe("Authn", func() {
 				BeforeEach(func() {
 					os.Unsetenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM")
 					os.Unsetenv("DOCKER_AUTH_JWT_USERNAME")
+					os.Unsetenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT")
 				})
@@ -92,6 +140,7 @@ var _ = Describe("Authn", func() {
 				BeforeEach(func() {
 					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 					os.Unsetenv("DOCKER_AUTH_JWT_USERNAME")
+					os.Unsetenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT")
 				})
@@ -107,6 +156,7 @@ var _ = Describe("Authn", func() {
 				BeforeEach(func() {
 					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 					os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+					os.Unsetenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT")
 				})
@@ -119,10 +169,27 @@ var _ = Describe("Authn", func() {
 			})
 		})
 
+		Context("when DOCKER_AUTH_JWT_LOWERCASE_LABELS is invalid", func() {
+			BeforeEach(func() {
+				os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
+				os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+				os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "invalid")
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+			})
+
+			It("panics", func() {
+				Expect(func() {
+					NewJWTAuthenticator(server.HTTPTestServer.Client())
+				}).To(PanicWith("DOCKER_AUTH_JWT_LOWERCASE_LABELS is invalid"))
+			})
+		})
+
 		Context("when all of configurations are set", func() {
 			BeforeEach(func() {
 				os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 				os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+				os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
 			})
@@ -136,17 +203,18 @@ var _ = Describe("Authn", func() {
 	})
 
 	Context("Authenticate()", func() {
-		BeforeEach(func() {
-			os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
-			os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
-			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
-			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
-
-			plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
-			authn = &plugin
-		})
-
 		Context("when username does not match", func() {
+			BeforeEach(func() {
+				os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
+				os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+				os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+
+				plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+				authn = &plugin
+			})
+
 			It("returns api.NoMatch error", func() {
 				actualResult, actualLabels, err := authn.Authenticate("username", api.PasswordString("password"))
 				Expect(actualResult).To(BeFalse())
@@ -157,6 +225,17 @@ var _ = Describe("Authn", func() {
 
 		Context("when username matches", func() {
 			Context("when token is in invalid format", func() {
+				BeforeEach(func() {
+					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
+					os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+
+					plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+					authn = &plugin
+				})
+
 				It("returns api.NoMatch error", func() {
 					actualResult, actualLabels, err := authn.Authenticate("oauth2accesstoken", api.PasswordString("password"))
 					Expect(actualResult).To(BeFalse())
@@ -167,63 +246,32 @@ var _ = Describe("Authn", func() {
 
 			Context("when token does not have required claim", func() {
 				BeforeEach(func() {
-					token, err := jwt.NewBuilder().
+					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
+					os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+
+					plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+					authn = &plugin
+
+					jwttoken, err := jwt.NewBuilder().
 						Issuer("test-issuer").
 						Audience([]string{"example.net"}).
 						Subject("test-user").
 						IssuedAt(time.Now()).
 						Expiration(time.Now().Add(5*time.Minute)).
 						Claim("test-claim-1", "test-value-1").
-						Claim("test-claim-2", "").
+						Claim("test-claim-2", "TEST-VALUE-2").
+						Claim("test-claim-3", "").
 						Build()
 					Expect(err).NotTo(HaveOccurred())
-
-					keyID1 := "test-key-1"
-					n1 := signingKey1.N
-					e1 := big.NewInt(int64(signingKey1.E))
-
-					keyID2 := "test-key-2"
-					n2 := signingKey2.N
-					e2 := big.NewInt(int64(signingKey2.E))
 
 					headers := jws.NewHeaders()
 					headers.Set(jws.KeyIDKey, keyID1)
 
-					idtoken, err = jwt.Sign(token, jwt.WithKey(jwa.RS256, signingKey1, jws.WithProtectedHeaders(headers)))
+					token, err = jwt.Sign(jwttoken, jwt.WithKey(jwa.RS256, signingKey1, jws.WithProtectedHeaders(headers)))
 					Expect(err).NotTo(HaveOccurred())
-
-					server.AppendHandlers(
-						ghttp.CombineHandlers(
-							ghttp.VerifyRequest(http.MethodGet, "/.well-known/jwks"),
-							ghttp.RespondWithJSONEncoded(http.StatusOK, map[string]any{
-								"keys": []map[string]any{
-									{
-										jwk.KeyTypeKey:   jwa.RSA,
-										jwk.KeyUsageKey:  jwk.ForSignature,
-										jwk.AlgorithmKey: jwa.RS256,
-										jwk.KeyIDKey:     keyID1,
-										jwk.RSANKey:      base64.URLEncoding.EncodeToString(n1.Bytes()),
-										jwk.RSAEKey:      base64.URLEncoding.EncodeToString(e1.Bytes()),
-									},
-								},
-							}),
-						),
-						ghttp.CombineHandlers(
-							ghttp.VerifyRequest(http.MethodGet, "/v2/jwks"),
-							ghttp.RespondWithJSONEncoded(http.StatusOK, map[string]any{
-								"keys": []map[string]any{
-									{
-										jwk.KeyTypeKey:   jwa.RSA,
-										jwk.KeyUsageKey:  jwk.ForSignature,
-										jwk.AlgorithmKey: jwa.RS256,
-										jwk.KeyIDKey:     keyID2,
-										jwk.RSANKey:      base64.URLEncoding.EncodeToString(n2.Bytes()),
-										jwk.RSAEKey:      base64.URLEncoding.EncodeToString(e2.Bytes()),
-									},
-								},
-							}),
-						),
-					)
 				})
 
 				AfterEach(func() {
@@ -231,7 +279,7 @@ var _ = Describe("Authn", func() {
 				})
 
 				It("returns api.NoMatch error", func() {
-					actualResult, actualLabels, err := authn.Authenticate("oauth2accesstoken", api.PasswordString(idtoken))
+					actualResult, actualLabels, err := authn.Authenticate("oauth2accesstoken", api.PasswordString(token))
 					Expect(actualResult).To(BeFalse())
 					Expect(actualLabels).To(BeNil())
 					Expect(err).To(Equal(api.NoMatch))
@@ -240,65 +288,32 @@ var _ = Describe("Authn", func() {
 
 			Context("when token cannot be validated", func() {
 				BeforeEach(func() {
-					token, err := jwt.NewBuilder().
+					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
+					os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+
+					plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+					authn = &plugin
+
+					jwttoken, err := jwt.NewBuilder().
 						Issuer("test-issuer").
 						Audience([]string{"example.net"}).
 						Subject("test-user").
 						IssuedAt(time.Now()).
 						Expiration(time.Now().Add(5*time.Minute)).
 						Claim("test-claim-1", "test-value-1").
-						Claim("test-claim-2", "").
+						Claim("test-claim-2", "TEST-VALUE-2").
+						Claim("test-claim-3", "").
 						Build()
 					Expect(err).NotTo(HaveOccurred())
-
-					keyID1 := "test-key-1"
-					n1 := signingKey1.N
-					e1 := big.NewInt(int64(signingKey1.E))
-
-					keyID2 := "test-key-2"
-					n2 := signingKey2.N
-					e2 := big.NewInt(int64(signingKey2.E))
-
-					keyID3 := "test-key-3"
 
 					headers := jws.NewHeaders()
 					headers.Set(jws.KeyIDKey, keyID3)
 
-					idtoken, err = jwt.Sign(token, jwt.WithKey(jwa.RS256, signingKey3, jws.WithProtectedHeaders(headers)))
+					token, err = jwt.Sign(jwttoken, jwt.WithKey(jwa.RS256, signingKey3, jws.WithProtectedHeaders(headers)))
 					Expect(err).NotTo(HaveOccurred())
-
-					server.AppendHandlers(
-						ghttp.CombineHandlers(
-							ghttp.VerifyRequest(http.MethodGet, "/.well-known/jwks"),
-							ghttp.RespondWithJSONEncoded(http.StatusOK, map[string]any{
-								"keys": []map[string]any{
-									{
-										jwk.KeyTypeKey:   jwa.RSA,
-										jwk.KeyUsageKey:  jwk.ForSignature,
-										jwk.AlgorithmKey: jwa.RS256,
-										jwk.KeyIDKey:     keyID1,
-										jwk.RSANKey:      base64.URLEncoding.EncodeToString(n1.Bytes()),
-										jwk.RSAEKey:      base64.URLEncoding.EncodeToString(e1.Bytes()),
-									},
-								},
-							}),
-						),
-						ghttp.CombineHandlers(
-							ghttp.VerifyRequest(http.MethodGet, "/v2/jwks"),
-							ghttp.RespondWithJSONEncoded(http.StatusOK, map[string]any{
-								"keys": []map[string]any{
-									{
-										jwk.KeyTypeKey:   jwa.RSA,
-										jwk.KeyUsageKey:  jwk.ForSignature,
-										jwk.AlgorithmKey: jwa.RS256,
-										jwk.KeyIDKey:     keyID2,
-										jwk.RSANKey:      base64.URLEncoding.EncodeToString(n2.Bytes()),
-										jwk.RSAEKey:      base64.URLEncoding.EncodeToString(e2.Bytes()),
-									},
-								},
-							}),
-						),
-					)
 				})
 
 				AfterEach(func() {
@@ -306,7 +321,7 @@ var _ = Describe("Authn", func() {
 				})
 
 				It("returns api.NoMatch error", func() {
-					actualResult, actualLabels, err := authn.Authenticate("oauth2accesstoken", api.PasswordString(idtoken))
+					actualResult, actualLabels, err := authn.Authenticate("oauth2accesstoken", api.PasswordString(token))
 					Expect(actualResult).To(BeFalse())
 					Expect(actualLabels).To(BeNil())
 					Expect(err).To(Equal(api.NoMatch))
@@ -314,79 +329,98 @@ var _ = Describe("Authn", func() {
 			})
 
 			Context("when token is valid", func() {
-				BeforeEach(func() {
-					token, err := jwt.NewBuilder().
-						Issuer("test-issuer").
-						Audience([]string{"example.com"}).
-						Subject("test-user").
-						IssuedAt(time.Now()).
-						Expiration(time.Now().Add(5*time.Minute)).
-						Claim("test-claim-1", "test-value-1").
-						Claim("test-claim-2", "").
-						Build()
-					Expect(err).NotTo(HaveOccurred())
+				Context("when DOCKER_AUTH_JWT_LOWERCASE_LABELS is disabled", func() {
+					BeforeEach(func() {
+						os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
+						os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+						os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
+						os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
+						os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
 
-					keyID1 := "test-key"
-					n1 := signingKey1.N
-					e1 := big.NewInt(int64(signingKey1.E))
+						plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+						authn = &plugin
 
-					keyID2 := "test-key-2"
-					n2 := signingKey2.N
-					e2 := big.NewInt(int64(signingKey2.E))
+						jwttoken, err := jwt.NewBuilder().
+							Issuer("test-issuer").
+							Audience([]string{"example.com"}).
+							Subject("test-user").
+							IssuedAt(time.Now()).
+							Expiration(time.Now().Add(5*time.Minute)).
+							Claim("test-claim-1", "test-value-1").
+							Claim("test-claim-2", "TEST-VALUE-2").
+							Claim("test-claim-3", "").
+							Build()
+						Expect(err).NotTo(HaveOccurred())
 
-					headers := jws.NewHeaders()
-					headers.Set(jws.KeyIDKey, keyID1)
+						headers := jws.NewHeaders()
+						headers.Set(jws.KeyIDKey, keyID1)
 
-					idtoken, err = jwt.Sign(token, jwt.WithKey(jwa.RS256, signingKey1, jws.WithProtectedHeaders(headers)))
-					Expect(err).NotTo(HaveOccurred())
+						token, err = jwt.Sign(jwttoken, jwt.WithKey(jwa.RS256, signingKey1, jws.WithProtectedHeaders(headers)))
+						Expect(err).NotTo(HaveOccurred())
+					})
 
-					server.AppendHandlers(
-						ghttp.CombineHandlers(
-							ghttp.VerifyRequest(http.MethodGet, "/.well-known/jwks"),
-							ghttp.RespondWithJSONEncoded(http.StatusOK, map[string]any{
-								"keys": []map[string]any{
-									{
-										jwk.KeyTypeKey:   jwa.RSA,
-										jwk.KeyUsageKey:  jwk.ForSignature,
-										jwk.AlgorithmKey: jwa.RS256,
-										jwk.KeyIDKey:     keyID1,
-										jwk.RSANKey:      base64.URLEncoding.EncodeToString(n1.Bytes()),
-										jwk.RSAEKey:      base64.URLEncoding.EncodeToString(e1.Bytes()),
-									},
-								},
-							}),
-						),
-						ghttp.CombineHandlers(
-							ghttp.VerifyRequest(http.MethodGet, "/v2/jwks"),
-							ghttp.RespondWithJSONEncoded(http.StatusOK, map[string]any{
-								"keys": []map[string]any{
-									{
-										jwk.KeyTypeKey:   jwa.RSA,
-										jwk.KeyUsageKey:  jwk.ForSignature,
-										jwk.AlgorithmKey: jwa.RS256,
-										jwk.KeyIDKey:     keyID2,
-										jwk.RSANKey:      base64.URLEncoding.EncodeToString(n2.Bytes()),
-										jwk.RSAEKey:      base64.URLEncoding.EncodeToString(e2.Bytes()),
-									},
-								},
-							}),
-						),
-					)
+					AfterEach(func() {
+						Expect(server.ReceivedRequests()).To(HaveLen(1))
+					})
+
+					It("returns true and labels", func() {
+						actualResult, actualLabels, err := authn.Authenticate("oauth2accesstoken", api.PasswordString(token))
+						Expect(actualResult).To(BeTrue())
+						Expect(actualLabels).To(HaveKeyWithValue("iss", []string{"test-issuer"}))
+						Expect(actualLabels).To(HaveKeyWithValue("sub", []string{"test-user"}))
+						Expect(actualLabels).To(HaveKeyWithValue("aud", []string{"example.com"}))
+						Expect(actualLabels).To(HaveKeyWithValue("test-claim-1", []string{"test-value-1"}))
+						Expect(actualLabels).To(HaveKeyWithValue("test-claim-2", []string{"TEST-VALUE-2"}))
+						Expect(actualLabels).To(HaveKeyWithValue("test-claim-3", []string{}))
+						Expect(err).NotTo(HaveOccurred())
+					})
 				})
 
-				AfterEach(func() {
-					Expect(server.ReceivedRequests()).To(HaveLen(1))
-				})
+				Context("when DOCKER_AUTH_JWT_LOWERCASE_LABELS is enabled", func() {
+					BeforeEach(func() {
+						os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
+						os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+						os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "true")
+						os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
+						os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
 
-				It("returns true and labels", func() {
-					actualResult, actualLabels, err := authn.Authenticate("oauth2accesstoken", api.PasswordString(idtoken))
-					Expect(actualResult).To(BeTrue())
-					Expect(actualLabels).To(HaveKeyWithValue("iss", []string{"test-issuer"}))
-					Expect(actualLabels).To(HaveKeyWithValue("sub", []string{"test-user"}))
-					Expect(actualLabels).To(HaveKeyWithValue("aud", []string{"example.com"}))
-					Expect(actualLabels).To(HaveKeyWithValue("test-claim-1", []string{"test-value-1"}))
-					Expect(actualLabels).To(HaveKeyWithValue("test-claim-2", []string{}))
-					Expect(err).NotTo(HaveOccurred())
+						plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+						authn = &plugin
+
+						jwttoken, err := jwt.NewBuilder().
+							Issuer("test-issuer").
+							Audience([]string{"example.com"}).
+							Subject("test-user").
+							IssuedAt(time.Now()).
+							Expiration(time.Now().Add(5*time.Minute)).
+							Claim("test-claim-1", "test-value-1").
+							Claim("test-claim-2", "TEST-VALUE-2").
+							Claim("test-claim-3", "").
+							Build()
+						Expect(err).NotTo(HaveOccurred())
+
+						headers := jws.NewHeaders()
+						headers.Set(jws.KeyIDKey, keyID1)
+
+						token, err = jwt.Sign(jwttoken, jwt.WithKey(jwa.RS256, signingKey1, jws.WithProtectedHeaders(headers)))
+						Expect(err).NotTo(HaveOccurred())
+					})
+
+					AfterEach(func() {
+						Expect(server.ReceivedRequests()).To(HaveLen(1))
+					})
+
+					It("returns true and labels", func() {
+						actualResult, actualLabels, err := authn.Authenticate("oauth2accesstoken", api.PasswordString(token))
+						Expect(actualResult).To(BeTrue())
+						Expect(actualLabels).To(HaveKeyWithValue("iss", []string{"test-issuer"}))
+						Expect(actualLabels).To(HaveKeyWithValue("sub", []string{"test-user"}))
+						Expect(actualLabels).To(HaveKeyWithValue("aud", []string{"example.com"}))
+						Expect(actualLabels).To(HaveKeyWithValue("test-claim-1", []string{"test-value-1"}))
+						Expect(actualLabels).To(HaveKeyWithValue("test-claim-2", []string{"test-value-2"}))
+						Expect(actualLabels).To(HaveKeyWithValue("test-claim-3", []string{}))
+						Expect(err).NotTo(HaveOccurred())
+					})
 				})
 			})
 		})
@@ -396,6 +430,7 @@ var _ = Describe("Authn", func() {
 		BeforeEach(func() {
 			os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 			os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+			os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
 
@@ -412,6 +447,7 @@ var _ = Describe("Authn", func() {
 		BeforeEach(func() {
 			os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 			os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+			os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
 

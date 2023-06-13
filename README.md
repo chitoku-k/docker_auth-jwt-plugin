@@ -38,6 +38,9 @@ export DOCKER_AUTH_JWT_JWKS_1_ENDPOINT=https://token.actions.githubusercontent.c
 # Fixed username for `docker login` (required; username that contains `:` does not work due to BASIC Auth)
 export DOCKER_AUTH_JWT_USERNAME=oauth2accesstoken
 
+# Lowercase labels after authentication is successful (optional; useful for ACL)
+export DOCKER_AUTH_JWT_LOWERCASE_LABELS=false
+
 # JWT "aud" claim whose value must be verified against (required)
 export DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM=your-client-id
 ```
