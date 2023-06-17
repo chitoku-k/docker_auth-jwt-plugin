@@ -3,7 +3,9 @@ package main_test
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"encoding/base64"
+	"encoding/pem"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -38,6 +40,7 @@ var _ = Describe("Authn", func() {
 		server    *ghttp.Server
 		endpoint1 string
 		endpoint2 string
+		caFile    *os.File
 
 		authn api.Authenticator
 		token []byte
@@ -54,6 +57,13 @@ var _ = Describe("Authn", func() {
 	BeforeEach(func() {
 		var err error
 		server = ghttp.NewTLSServer()
+
+		ca := server.HTTPTestServer.Certificate()
+		caFile, err = os.CreateTemp("", "docker_auth-jwt-plugin-test-*.crt")
+		Expect(err).NotTo(HaveOccurred())
+
+		err = pem.Encode(caFile, &pem.Block{Type: "CERTIFICATE", Bytes: ca.Raw})
+		Expect(err).NotTo(HaveOccurred())
 
 		endpoint1, err = url.JoinPath(server.URL(), ".well-known/jwks")
 		Expect(err).NotTo(HaveOccurred())
@@ -116,6 +126,9 @@ var _ = Describe("Authn", func() {
 
 	AfterEach(func() {
 		server.Close()
+
+		caFile.Close()
+		os.Remove(caFile.Name())
 	})
 
 	Context("NewJWTAuthenticator()", func() {
@@ -127,11 +140,13 @@ var _ = Describe("Authn", func() {
 					os.Unsetenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT")
+					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH")
+					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH")
 				})
 
 				It("panics", func() {
 					Expect(func() {
-						NewJWTAuthenticator(server.HTTPTestServer.Client())
+						NewJWTAuthenticator(http.DefaultClient)
 					}).To(PanicWith("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM is not set"))
 				})
 			})
@@ -143,11 +158,13 @@ var _ = Describe("Authn", func() {
 					os.Unsetenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT")
+					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH")
+					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH")
 				})
 
 				It("panics", func() {
 					Expect(func() {
-						NewJWTAuthenticator(server.HTTPTestServer.Client())
+						NewJWTAuthenticator(http.DefaultClient)
 					}).To(PanicWith("DOCKER_AUTH_JWT_USERNAME is not set"))
 				})
 			})
@@ -159,11 +176,13 @@ var _ = Describe("Authn", func() {
 					os.Unsetenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT")
+					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH")
+					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH")
 				})
 
 				It("panics", func() {
 					Expect(func() {
-						NewJWTAuthenticator(server.HTTPTestServer.Client())
+						NewJWTAuthenticator(http.DefaultClient)
 					}).To(PanicWith("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT is not set"))
 				})
 			})
@@ -176,28 +195,85 @@ var _ = Describe("Authn", func() {
 				os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "invalid")
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 			})
 
 			It("panics", func() {
 				Expect(func() {
-					NewJWTAuthenticator(server.HTTPTestServer.Client())
+					NewJWTAuthenticator(http.DefaultClient)
 				}).To(PanicWith("DOCKER_AUTH_JWT_LOWERCASE_LABELS is invalid"))
 			})
 		})
 
-		Context("when all of configurations are set", func() {
+		Context("when DOCKER_AUTH_JWT_JWKS_0_CA_PATH is invalid", func() {
 			BeforeEach(func() {
+				os.Remove(caFile.Name())
+
 				os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 				os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 				os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
+				os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH")
 			})
 
-			It("returns authenticator", func() {
+			It("panics", func() {
 				Expect(func() {
-					NewJWTAuthenticator(server.HTTPTestServer.Client())
-				}).NotTo(Panic())
+					NewJWTAuthenticator(http.DefaultClient)
+				}).To(PanicWith(HavePrefix("DOCKER_AUTH_JWT_JWKS_0_CA_PATH cannot be configured:")))
+			})
+		})
+
+		Context("when all of configurations are set", func() {
+			Context("when Transport is not set", func() {
+				BeforeEach(func() {
+					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
+					os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
+				})
+
+				It("returns authenticator", func() {
+					Expect(func() {
+						NewJWTAuthenticator(http.DefaultClient)
+					}).NotTo(Panic())
+				})
+			})
+
+			Context("when Transport is set", func() {
+				var (
+					proxyURL *url.URL
+				)
+
+				BeforeEach(func() {
+					var err error
+					proxyURL, err = url.Parse("http://proxy.example.com:8080")
+					Expect(err).NotTo(HaveOccurred())
+
+					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
+					os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
+					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
+				})
+
+				It("returns authenticator", func() {
+					Expect(func() {
+						NewJWTAuthenticator(&http.Client{
+							Transport: &http.Transport{
+								Proxy:        http.ProxyURL(proxyURL),
+								TLSNextProto: map[string]func(authority string, c *tls.Conn) http.RoundTripper{},
+							},
+						})
+					}).NotTo(Panic())
+				})
 			})
 		})
 	})
@@ -210,8 +286,10 @@ var _ = Describe("Authn", func() {
 				os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
-				plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+				plugin := NewJWTAuthenticator(http.DefaultClient)
 				authn = &plugin
 			})
 
@@ -231,8 +309,10 @@ var _ = Describe("Authn", func() {
 					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
-					plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+					plugin := NewJWTAuthenticator(http.DefaultClient)
 					authn = &plugin
 				})
 
@@ -251,8 +331,10 @@ var _ = Describe("Authn", func() {
 					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
-					plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+					plugin := NewJWTAuthenticator(http.DefaultClient)
 					authn = &plugin
 
 					jwttoken, err := jwt.NewBuilder().
@@ -293,8 +375,10 @@ var _ = Describe("Authn", func() {
 					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
-					plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+					plugin := NewJWTAuthenticator(http.DefaultClient)
 					authn = &plugin
 
 					jwttoken, err := jwt.NewBuilder().
@@ -336,8 +420,10 @@ var _ = Describe("Authn", func() {
 						os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 						os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 						os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+						os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
+						os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
-						plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+						plugin := NewJWTAuthenticator(http.DefaultClient)
 						authn = &plugin
 
 						jwttoken, err := jwt.NewBuilder().
@@ -383,8 +469,10 @@ var _ = Describe("Authn", func() {
 						os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "true")
 						os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 						os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+						os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
+						os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
-						plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+						plugin := NewJWTAuthenticator(http.DefaultClient)
 						authn = &plugin
 
 						jwttoken, err := jwt.NewBuilder().
@@ -433,8 +521,10 @@ var _ = Describe("Authn", func() {
 			os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
+			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
-			plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+			plugin := NewJWTAuthenticator(http.DefaultClient)
 			authn = &plugin
 		})
 
@@ -450,8 +540,10 @@ var _ = Describe("Authn", func() {
 			os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
+			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
-			plugin := NewJWTAuthenticator(server.HTTPTestServer.Client())
+			plugin := NewJWTAuthenticator(http.DefaultClient)
 			authn = &plugin
 		})
 

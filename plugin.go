@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -30,7 +31,7 @@ type jwkProvider struct {
 	keySet jwk.Set
 }
 
-func NewJWTAuthenticator(httpClient jwk.HTTPClient) jwtAuthenticator {
+func NewJWTAuthenticator(httpClient *http.Client) jwtAuthenticator {
 	aud := os.Getenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM")
 	if aud == "" {
 		panic("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM is not set")
@@ -58,8 +59,18 @@ func NewJWTAuthenticator(httpClient jwk.HTTPClient) jwtAuthenticator {
 			break
 		}
 
+		jwkHTTPClient := httpClient
+		caPath := os.Getenv(fmt.Sprintf("DOCKER_AUTH_JWT_JWKS_%d_CA_PATH", i))
+		if caPath != "" {
+			var err error
+			jwkHTTPClient, err = httpClientWithRootCA(jwkHTTPClient, caPath)
+			if err != nil {
+				panic(fmt.Sprintf("DOCKER_AUTH_JWT_JWKS_%d_CA_PATH cannot be configured: %v", i, err))
+			}
+		}
+
 		cache := jwk.NewCache(context.Background())
-		cache.Register(endpoint, jwk.WithHTTPClient(httpClient))
+		cache.Register(endpoint, jwk.WithHTTPClient(jwkHTTPClient))
 
 		jwkProviders = append(jwkProviders, jwkProvider{
 			keySet: jwk.NewCachedSet(cache, endpoint),
