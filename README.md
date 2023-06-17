@@ -12,6 +12,8 @@ Token) via JWKs endpoint.
 docker run \
     --env=DOCKER_AUTH_JWT_JWKS_0_ENDPOINT \
     --env=DOCKER_AUTH_JWT_JWKS_1_ENDPOINT \
+    --env=DOCKER_AUTH_JWT_JWKS_2_ENDPOINT \
+    --env=DOCKER_AUTH_JWT_JWKS_2_CA_PATH \
     --env=DOCKER_AUTH_JWT_USERNAME \
     --env=DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM \
     --mount=type=bind,src=./config/auth_config.yml,dst=/config/auth_config.yml \
@@ -33,7 +35,11 @@ Start docker\_auth with the environment variable(s):
 # JWKs endpoint(s) that is/are verified with (at least one endpoint is required)
 export DOCKER_AUTH_JWT_JWKS_0_ENDPOINT=https://www.googleapis.com/oauth2/v3/certs
 export DOCKER_AUTH_JWT_JWKS_1_ENDPOINT=https://token.actions.githubusercontent.com/.well-known/jwks
+export DOCKER_AUTH_JWT_JWKS_2_ENDPOINT=https://kubernetes.default.svc.cluster.local/openid/v1/jwks
 # ...
+
+# JWKs CA path (optional)
+export DOCKER_AUTH_JWT_JWKS_2_CA_PATH=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 
 # Fixed username for `docker login` (required; username that contains `:` does not work due to BASIC Auth)
 export DOCKER_AUTH_JWT_USERNAME=oauth2accesstoken
