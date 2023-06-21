@@ -22,21 +22,16 @@ var _ api.Authenticator = (*jwtAuthenticator)(nil)
 type jwtAuthenticator struct {
 	jwkProviders []jwkProvider
 	username     string
-	clientID     string
 
 	lowercaseLabels bool
 }
 
 type jwkProvider struct {
-	keySet jwk.Set
+	keySet   jwk.Set
+	clientID string
 }
 
 func NewJWTAuthenticator(httpClient *http.Client) jwtAuthenticator {
-	aud := os.Getenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM")
-	if aud == "" {
-		panic("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM is not set")
-	}
-
 	username := os.Getenv("DOCKER_AUTH_JWT_USERNAME")
 	if username == "" {
 		panic("DOCKER_AUTH_JWT_USERNAME is not set")
@@ -59,6 +54,11 @@ func NewJWTAuthenticator(httpClient *http.Client) jwtAuthenticator {
 			break
 		}
 
+		aud := os.Getenv(fmt.Sprintf("DOCKER_AUTH_JWT_JWKS_%d_REQUIRED_AUD_CLAIM", i))
+		if aud == "" {
+			break
+		}
+
 		jwkHTTPClient := httpClient
 		caPath := os.Getenv(fmt.Sprintf("DOCKER_AUTH_JWT_JWKS_%d_CA_PATH", i))
 		if caPath != "" {
@@ -73,7 +73,8 @@ func NewJWTAuthenticator(httpClient *http.Client) jwtAuthenticator {
 		cache.Register(endpoint, jwk.WithHTTPClient(jwkHTTPClient))
 
 		jwkProviders = append(jwkProviders, jwkProvider{
-			keySet: jwk.NewCachedSet(cache, endpoint),
+			keySet:   jwk.NewCachedSet(cache, endpoint),
+			clientID: aud,
 		})
 	}
 
@@ -84,7 +85,6 @@ func NewJWTAuthenticator(httpClient *http.Client) jwtAuthenticator {
 	return jwtAuthenticator{
 		jwkProviders:    jwkProviders,
 		username:        username,
-		clientID:        aud,
 		lowercaseLabels: lowercaseLabels,
 	}
 }
@@ -138,7 +138,7 @@ func (j *jwtAuthenticator) Authenticate(user string, password api.PasswordString
 		t, err := jwt.Parse(
 			token,
 			jwt.WithKeySet(jwkProvider.keySet),
-			jwt.WithAudience(j.clientID),
+			jwt.WithAudience(jwkProvider.clientID),
 		)
 		if errors.Is(err, jwt.ErrInvalidJWT()) {
 			return false, nil, api.NoMatch

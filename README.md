@@ -11,8 +11,11 @@ Token) via JWKs endpoint.
 ```sh
 docker run \
     --env=DOCKER_AUTH_JWT_JWKS_0_ENDPOINT \
+    --env=DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM \
     --env=DOCKER_AUTH_JWT_JWKS_1_ENDPOINT \
+    --env=DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM \
     --env=DOCKER_AUTH_JWT_JWKS_2_ENDPOINT \
+    --env=DOCKER_AUTH_JWT_JWKS_2_REQUIRED_AUD_CLAIM \
     --env=DOCKER_AUTH_JWT_JWKS_2_CA_PATH \
     --env=DOCKER_AUTH_JWT_USERNAME \
     --env=DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM \
@@ -36,7 +39,11 @@ Start docker\_auth with the environment variable(s):
 export DOCKER_AUTH_JWT_JWKS_0_ENDPOINT=https://www.googleapis.com/oauth2/v3/certs
 export DOCKER_AUTH_JWT_JWKS_1_ENDPOINT=https://token.actions.githubusercontent.com/.well-known/jwks
 export DOCKER_AUTH_JWT_JWKS_2_ENDPOINT=https://kubernetes.default.svc.cluster.local/openid/v1/jwks
-# ...
+
+# JWT "aud" claim whose value must be verified against (required)
+export DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM=your-client-id-1
+export DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM=your-client-id-2
+export DOCKER_AUTH_JWT_JWKS_2_REQUIRED_AUD_CLAIM=your-client-id-3
 
 # JWKs CA path (optional)
 export DOCKER_AUTH_JWT_JWKS_2_CA_PATH=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
@@ -46,9 +53,6 @@ export DOCKER_AUTH_JWT_USERNAME=oauth2accesstoken
 
 # Lowercase labels after authentication is successful (optional; useful for ACL)
 export DOCKER_AUTH_JWT_LOWERCASE_LABELS=false
-
-# JWT "aud" claim whose value must be verified against (required)
-export DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM=your-client-id
 ```
 
 Execute `docker login` with the fixed username and the token as a password:

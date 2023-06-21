@@ -133,31 +133,14 @@ var _ = Describe("Authn", func() {
 
 	Context("NewJWTAuthenticator()", func() {
 		Context("when any of configurations are not set", func() {
-			Context("when DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM is not set", func() {
-				BeforeEach(func() {
-					os.Unsetenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM")
-					os.Unsetenv("DOCKER_AUTH_JWT_USERNAME")
-					os.Unsetenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS")
-					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT")
-					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT")
-					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH")
-					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH")
-				})
-
-				It("panics", func() {
-					Expect(func() {
-						NewJWTAuthenticator(http.DefaultClient)
-					}).To(PanicWith("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM is not set"))
-				})
-			})
-
 			Context("when DOCKER_AUTH_JWT_USERNAME is not set", func() {
 				BeforeEach(func() {
-					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 					os.Unsetenv("DOCKER_AUTH_JWT_USERNAME")
 					os.Unsetenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT")
+					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM")
+					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH")
 				})
@@ -171,11 +154,12 @@ var _ = Describe("Authn", func() {
 
 			Context("when DOCKER_AUTH_JWT_JWKS_0_ENDPOINT is not set", func() {
 				BeforeEach(func() {
-					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 					os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 					os.Unsetenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT")
+					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM")
+					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH")
 					os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH")
 				})
@@ -190,11 +174,12 @@ var _ = Describe("Authn", func() {
 
 		Context("when DOCKER_AUTH_JWT_LOWERCASE_LABELS is invalid", func() {
 			BeforeEach(func() {
-				os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 				os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 				os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "invalid")
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM", "example.com")
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM", "example.com")
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 			})
@@ -210,11 +195,12 @@ var _ = Describe("Authn", func() {
 			BeforeEach(func() {
 				os.Remove(caFile.Name())
 
-				os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 				os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 				os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM", "example.com")
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM", "example.com")
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
 				os.Unsetenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH")
 			})
@@ -229,11 +215,12 @@ var _ = Describe("Authn", func() {
 		Context("when all of configurations are set", func() {
 			Context("when Transport is not set", func() {
 				BeforeEach(func() {
-					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 					os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM", "example.com")
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM", "example.com")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 				})
@@ -255,11 +242,12 @@ var _ = Describe("Authn", func() {
 					proxyURL, err = url.Parse("http://proxy.example.com:8080")
 					Expect(err).NotTo(HaveOccurred())
 
-					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 					os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM", "example.com")
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM", "example.com")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 				})
@@ -281,11 +269,12 @@ var _ = Describe("Authn", func() {
 	Context("Authenticate()", func() {
 		Context("when username does not match", func() {
 			BeforeEach(func() {
-				os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 				os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 				os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM", "example.com")
+				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM", "example.com")
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
 				os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
@@ -304,11 +293,12 @@ var _ = Describe("Authn", func() {
 		Context("when username matches", func() {
 			Context("when token is in invalid format", func() {
 				BeforeEach(func() {
-					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 					os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM", "example.com")
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM", "example.com")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
@@ -326,11 +316,12 @@ var _ = Describe("Authn", func() {
 
 			Context("when token does not have required claim", func() {
 				BeforeEach(func() {
-					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 					os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM", "example.com")
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM", "example.com")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
@@ -370,11 +361,12 @@ var _ = Describe("Authn", func() {
 
 			Context("when token cannot be validated", func() {
 				BeforeEach(func() {
-					os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 					os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 					os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM", "example.com")
+					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM", "example.com")
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
 					os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
@@ -415,11 +407,12 @@ var _ = Describe("Authn", func() {
 			Context("when token is valid", func() {
 				Context("when DOCKER_AUTH_JWT_LOWERCASE_LABELS is disabled", func() {
 					BeforeEach(func() {
-						os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 						os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 						os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 						os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 						os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+						os.Setenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM", "example.com")
+						os.Setenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM", "example.com")
 						os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
 						os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
@@ -464,11 +457,12 @@ var _ = Describe("Authn", func() {
 
 				Context("when DOCKER_AUTH_JWT_LOWERCASE_LABELS is enabled", func() {
 					BeforeEach(func() {
-						os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 						os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 						os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "true")
 						os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 						os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+						os.Setenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM", "example.com")
+						os.Setenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM", "example.com")
 						os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
 						os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
@@ -516,11 +510,12 @@ var _ = Describe("Authn", func() {
 
 	Context("Stop()", func() {
 		BeforeEach(func() {
-			os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 			os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 			os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM", "example.com")
+			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM", "example.com")
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
@@ -535,11 +530,12 @@ var _ = Describe("Authn", func() {
 
 	Context("Name()", func() {
 		BeforeEach(func() {
-			os.Setenv("DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM", "example.com")
 			os.Setenv("DOCKER_AUTH_JWT_USERNAME", "oauth2accesstoken")
 			os.Setenv("DOCKER_AUTH_JWT_LOWERCASE_LABELS", "false")
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_ENDPOINT", endpoint1)
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_ENDPOINT", endpoint2)
+			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_REQUIRED_AUD_CLAIM", "example.com")
+			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_REQUIRED_AUD_CLAIM", "example.com")
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_0_CA_PATH", caFile.Name())
 			os.Setenv("DOCKER_AUTH_JWT_JWKS_1_CA_PATH", caFile.Name())
 
