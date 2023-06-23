@@ -8,7 +8,7 @@ require (
 	github.com/cesanta/docker_auth/auth_server v0.0.0-20230301204333-39d6404f878d
 	github.com/cesanta/glog v0.0.0-20150527111657-22eb27a0ae19
 	github.com/lestrrat-go/jwx/v2 v2.0.8
-	github.com/onsi/ginkgo/v2 v2.10.0
+	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.8
 )
 
@@ -27,7 +27,7 @@ require (
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be // indirect
 	golang.org/x/net v0.10.0 // indirect
-	golang.org/x/sys v0.8.0 // indirect
+	golang.org/x/sys v0.9.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/tools v0.9.3 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
