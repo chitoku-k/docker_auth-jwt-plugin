@@ -1,6 +1,6 @@
 module github.com/chitoku-k/docker_auth-jwt-plugin
 
-go 1.20
+go 1.21
 
 replace github.com/cesanta/docker_auth/auth_server => ./docker_auth/auth_server
 
