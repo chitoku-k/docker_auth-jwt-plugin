@@ -18,7 +18,6 @@ docker run \
     --env=DOCKER_AUTH_JWT_JWKS_2_REQUIRED_AUD_CLAIM \
     --env=DOCKER_AUTH_JWT_JWKS_2_CA_PATH \
     --env=DOCKER_AUTH_JWT_USERNAME \
-    --env=DOCKER_AUTH_JWT_REQUIRED_AUD_CLAIM \
     --mount=type=bind,src=./config/auth_config.yml,dst=/config/auth_config.yml \
     ghcr.io/chitoku-k/docker_auth
 ```
