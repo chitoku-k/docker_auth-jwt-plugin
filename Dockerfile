@@ -9,7 +9,7 @@ RUN --mount=type=cache,target=/go \
 FROM golang:1.22.0 AS core
 WORKDIR /usr/src/docker_auth/auth_server
 COPY . /usr/src/
-ARG DOCKER_AUTH_VERSION=1.11.0
+ARG DOCKER_AUTH_VERSION=1.12.0
 RUN --mount=type=cache,target=/go \
     --mount=type=cache,target=/root/.cache/go-build \
     VERSION=$DOCKER_AUTH_VERSION && \
