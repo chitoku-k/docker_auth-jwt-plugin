@@ -1,12 +1,12 @@
 # syntax = docker/dockerfile:1
-FROM golang:1.22.3 AS build
+FROM golang:1.22.4 AS build
 WORKDIR /usr/src
 COPY . /usr/src/
 RUN --mount=type=cache,target=/go \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -buildmode=plugin -tags=plugin -ldflags='-s -w'
 
-FROM golang:1.22.3 AS core
+FROM golang:1.22.4 AS core
 WORKDIR /usr/src/docker_auth/auth_server
 COPY . /usr/src/
 ARG DOCKER_AUTH_VERSION=1.12.0
