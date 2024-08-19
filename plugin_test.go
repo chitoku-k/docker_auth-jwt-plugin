@@ -208,7 +208,7 @@ var _ = Describe("Authn", func() {
 			It("panics", func() {
 				Expect(func() {
 					NewJWTAuthenticator(http.DefaultClient)
-				}).To(PanicWith(HavePrefix("DOCKER_AUTH_JWT_JWKS_0_CA_PATH cannot be configured:")))
+				}).To(PanicWith(MatchError(HavePrefix("DOCKER_AUTH_JWT_JWKS_0_CA_PATH cannot be configured:"))))
 			})
 		})
 
@@ -341,7 +341,8 @@ var _ = Describe("Authn", func() {
 					Expect(err).NotTo(HaveOccurred())
 
 					headers := jws.NewHeaders()
-					headers.Set(jws.KeyIDKey, keyID1)
+					err = headers.Set(jws.KeyIDKey, keyID1)
+					Expect(err).NotTo(HaveOccurred())
 
 					token, err = jwt.Sign(jwttoken, jwt.WithKey(jwa.RS256, signingKey1, jws.WithProtectedHeaders(headers)))
 					Expect(err).NotTo(HaveOccurred())
@@ -386,7 +387,8 @@ var _ = Describe("Authn", func() {
 					Expect(err).NotTo(HaveOccurred())
 
 					headers := jws.NewHeaders()
-					headers.Set(jws.KeyIDKey, keyID3)
+					err = headers.Set(jws.KeyIDKey, keyID3)
+					Expect(err).NotTo(HaveOccurred())
 
 					token, err = jwt.Sign(jwttoken, jwt.WithKey(jwa.RS256, signingKey3, jws.WithProtectedHeaders(headers)))
 					Expect(err).NotTo(HaveOccurred())
@@ -432,7 +434,8 @@ var _ = Describe("Authn", func() {
 						Expect(err).NotTo(HaveOccurred())
 
 						headers := jws.NewHeaders()
-						headers.Set(jws.KeyIDKey, keyID1)
+						err = headers.Set(jws.KeyIDKey, keyID1)
+						Expect(err).NotTo(HaveOccurred())
 
 						token, err = jwt.Sign(jwttoken, jwt.WithKey(jwa.RS256, signingKey1, jws.WithProtectedHeaders(headers)))
 						Expect(err).NotTo(HaveOccurred())
@@ -482,7 +485,8 @@ var _ = Describe("Authn", func() {
 						Expect(err).NotTo(HaveOccurred())
 
 						headers := jws.NewHeaders()
-						headers.Set(jws.KeyIDKey, keyID1)
+						err = headers.Set(jws.KeyIDKey, keyID1)
+						Expect(err).NotTo(HaveOccurred())
 
 						token, err = jwt.Sign(jwttoken, jwt.WithKey(jwa.RS256, signingKey1, jws.WithProtectedHeaders(headers)))
 						Expect(err).NotTo(HaveOccurred())

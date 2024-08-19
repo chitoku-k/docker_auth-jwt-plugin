@@ -65,12 +65,15 @@ func NewJWTAuthenticator(httpClient *http.Client) jwtAuthenticator {
 			var err error
 			jwkHTTPClient, err = httpClientWithRootCA(jwkHTTPClient, caPath)
 			if err != nil {
-				panic(fmt.Sprintf("DOCKER_AUTH_JWT_JWKS_%d_CA_PATH cannot be configured: %v", i, err))
+				panic(fmt.Errorf("DOCKER_AUTH_JWT_JWKS_%d_CA_PATH cannot be configured: %w", i, err))
 			}
 		}
 
 		cache := jwk.NewCache(context.Background())
-		cache.Register(endpoint, jwk.WithHTTPClient(jwkHTTPClient))
+		err := cache.Register(endpoint, jwk.WithHTTPClient(jwkHTTPClient))
+		if err != nil {
+			panic(fmt.Errorf("%s cannot be registered: %w", endpoint, err))
+		}
 
 		jwkProviders = append(jwkProviders, jwkProvider{
 			keySet:   jwk.NewCachedSet(cache, endpoint),
