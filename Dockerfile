@@ -1,11 +1,20 @@
 # syntax = docker/dockerfile:1
 # check = skip=SecretsUsedInArgOrEnv
-FROM golang:1.23.0 AS build
+FROM golang:1.23.0 AS base
 WORKDIR /usr/src
+COPY go.mod go.sum /usr/src/
+COPY docker_auth/ /usr/src/docker_auth/
+RUN --mount=type=cache,target=/go \
+    go mod download
 COPY . /usr/src/
+
+FROM base AS build
 RUN --mount=type=cache,target=/go \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -buildmode=plugin -tags=plugin -ldflags='-s -w'
+
+FROM base AS dev
+COPY --from=golangci/golangci-lint /usr/bin/golangci-lint /usr/bin
 
 FROM golang:1.23.0 AS core
 WORKDIR /usr/src/docker_auth/auth_server
