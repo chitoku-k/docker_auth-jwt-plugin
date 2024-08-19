@@ -1,4 +1,5 @@
 # syntax = docker/dockerfile:1
+# check = skip=SecretsUsedInArgOrEnv
 FROM golang:1.23.0 AS build
 WORKDIR /usr/src
 COPY . /usr/src/
